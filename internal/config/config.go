@@ -10,43 +10,25 @@ import (
 )
 
 type Config struct {
-	// Parser settings
-	Parser ParserConfig `json:"parser" yaml:"parser"`
-
-	// Analyzer settings
+	Parser   ParserConfig   `json:"parser" yaml:"parser"`
 	Analyzer AnalyzerConfig `json:"analyzer" yaml:"analyzer"`
-
-	// Logger settings
-	Logger LoggerConfig `json:"logger" yaml:"logger"`
-
-	// Output settings
-	Output OutputConfig `json:"output" yaml:"output"`
+	Logger   LoggerConfig   `json:"logger" yaml:"logger"`
+	Output   OutputConfig   `json:"output" yaml:"output"`
 }
 
 type ParserConfig struct {
-	// Enable strict mode for parsing
-	StrictMode bool `json:"strict_mode" yaml:"strict_mode"`
-
-	// Maximum query size to parse (in characters)
-	MaxQuerySize int `json:"max_query_size" yaml:"max_query_size"`
-
-	// SQL dialect (sqlserver, mysql, postgresql, etc.)
-	Dialect string `json:"dialect" yaml:"dialect"`
+	StrictMode   bool   `json:"strict_mode" yaml:"strict_mode"`
+	MaxQuerySize int    `json:"max_query_size" yaml:"max_query_size"`
+	Dialect      string `json:"dialect" yaml:"dialect"`
 }
 
 type AnalyzerConfig struct {
-	// Enable optimization suggestions
 	EnableOptimizations bool `json:"enable_optimizations" yaml:"enable_optimizations"`
-
-	// Complexity threshold for warnings
-	ComplexityThreshold int `json:"complexity_threshold" yaml:"complexity_threshold"`
-
-	// Enable detailed column analysis
-	DetailedAnalysis bool `json:"detailed_analysis" yaml:"detailed_analysis"`
+	ComplexityThreshold int  `json:"complexity_threshold" yaml:"complexity_threshold"`
+	DetailedAnalysis    bool `json:"detailed_analysis" yaml:"detailed_analysis"`
 }
 
 type LoggerConfig struct {
-	// Default log format if auto-detection fails
 	DefaultFormat string `json:"default_format" yaml:"default_format"`
 
 	// Maximum log file size to process (in MB)

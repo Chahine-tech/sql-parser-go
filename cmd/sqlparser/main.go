@@ -33,14 +33,12 @@ func main() {
 		return
 	}
 
-	// Load configuration
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
 		fmt.Printf("Warning: Could not load config: %v\n", err)
 		cfg = config.DefaultConfig()
 	}
 
-	// Override config with command line flags
 	if *outputFormat != "json" {
 		cfg.Output.Format = *outputFormat
 	}
@@ -97,10 +95,8 @@ func analyzeQueryFile(filename string, cfg *config.Config, verbose bool) error {
 }
 
 func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
-	// Start performance monitoring
 	monitor := performance.NewPerformanceMonitor()
 
-	// Create context with timeout for parsing
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -109,7 +105,6 @@ func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
 		fmt.Printf("Query: %s\n\n", sql)
 	}
 
-	// Parse the query with context
 	p := parser.NewWithContext(ctx, sql)
 	stmt, err := p.ParseStatement()
 	if err != nil {
@@ -119,17 +114,14 @@ func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
 	if verbose {
 		fmt.Printf("Parsed statement type: %s\n", stmt.Type())
 
-		// Show parser metrics
 		if metrics := p.GetParseMetrics(); metrics != nil {
 			fmt.Printf("Parser metrics: %v\n", metrics)
 		}
 	}
 
-	// Analyze the parsed statement
 	a := analyzer.New()
 	analysis := a.Analyze(stmt)
 
-	// Get optimization suggestions if enabled
 	var suggestions []analyzer.OptimizationSuggestion
 	if cfg.Analyzer.EnableOptimizations {
 		if selectStmt, ok := stmt.(*parser.SelectStatement); ok {
@@ -137,13 +129,11 @@ func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
 		}
 	}
 
-	// Show performance metrics
 	if verbose {
 		metrics := monitor.GetMetrics()
 		fmt.Printf("Performance metrics: %v\n", metrics)
 	}
 
-	// Output results
 	return outputAnalysis(analysis, suggestions, cfg)
 }
 

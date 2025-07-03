@@ -1,6 +1,4 @@
 // Package parser provides SQL parsing functionality for SQL Server queries.
-// It builds Abstract Syntax Trees (AST) from tokenized SQL input and supports
-// SELECT, INSERT, UPDATE, and DELETE statements with complex joins and expressions.
 package parser
 
 import (
@@ -21,32 +19,25 @@ type Parser struct {
 
 	errors []string
 
-	// Performance tracking
 	parseStartTime time.Time
 	tokenCount     int
 
-	// Context for cancellation
 	ctx context.Context
 }
 
-// New creates a new Parser with the given SQL input.
-// It uses a background context for parsing operations.
 func New(input string) *Parser {
 	return NewWithContext(context.Background(), input)
 }
 
-// NewWithContext creates a new Parser with the given SQL input and context.
-// The context can be used to cancel parsing operations if they take too long.
 func NewWithContext(ctx context.Context, input string) *Parser {
 	l := lexer.New(input)
 	p := &Parser{
 		l:              l,
-		errors:         make([]string, 0, 4), // Pre-allocate with capacity
+		errors:         make([]string, 0, 4),
 		parseStartTime: time.Now(),
 		ctx:            ctx,
 	}
 
-	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
 	p.nextToken()
 
@@ -54,7 +45,6 @@ func NewWithContext(ctx context.Context, input string) *Parser {
 }
 
 func (p *Parser) nextToken() {
-	// Check for context cancellation
 	select {
 	case <-p.ctx.Done():
 		p.errors = append(p.errors, "parsing cancelled due to timeout")
@@ -93,7 +83,6 @@ func (p *Parser) unexpectedTokenError(expected string) {
 	p.errors = append(p.errors, msg)
 }
 
-// Recovery mechanism for parsing errors
 func (p *Parser) synchronize() {
 	p.nextToken()
 
@@ -103,7 +92,6 @@ func (p *Parser) synchronize() {
 			return
 		}
 
-		// Synchronize on statement keywords
 		switch p.curToken.Type {
 		case lexer.SELECT, lexer.INSERT, lexer.UPDATE, lexer.DELETE,
 			lexer.CREATE, lexer.DROP, lexer.ALTER:
@@ -114,7 +102,6 @@ func (p *Parser) synchronize() {
 	}
 }
 
-// Helper methods for token checking
 func (p *Parser) curTokenIs(t lexer.TokenType) bool {
 	return p.curToken.Type == t
 }
@@ -132,7 +119,6 @@ func (p *Parser) expectPeek(t lexer.TokenType) bool {
 	return false
 }
 
-// GetParseMetrics returns parsing performance metrics
 func (p *Parser) GetParseMetrics() map[string]interface{} {
 	duration := time.Since(p.parseStartTime)
 	return map[string]interface{}{
@@ -143,7 +129,6 @@ func (p *Parser) GetParseMetrics() map[string]interface{} {
 	}
 }
 
-// ParseStatement parses a single SQL statement
 func (p *Parser) ParseStatement() (Statement, error) {
 	switch p.curToken.Type {
 	case lexer.SELECT:
@@ -164,19 +149,17 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 	stmt := GetSelectStatement() // Use object pool
 
 	if !p.curTokenIs(lexer.SELECT) {
-		PutSelectStatement(stmt) // Return to pool on error
+		PutSelectStatement(stmt)
 		return nil, fmt.Errorf("expected SELECT, got %s", p.curToken.Literal)
 	}
 
 	p.nextToken()
 
-	// Check for DISTINCT
 	if p.curTokenIs(lexer.DISTINCT) {
 		stmt.Distinct = true
 		p.nextToken()
 	}
 
-	// Check for TOP (SQL Server specific)
 	if p.curTokenIs(lexer.TOP) {
 		topClause, err := p.parseTopClause()
 		if err != nil {
@@ -185,14 +168,12 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.Top = topClause
 	}
 
-	// Parse SELECT list
 	columns, err := p.parseSelectList()
 	if err != nil {
 		return nil, err
 	}
 	stmt.Columns = columns
 
-	// Parse FROM clause
 	if p.curTokenIs(lexer.FROM) {
 		fromClause, err := p.parseFromClause()
 		if err != nil {
@@ -201,7 +182,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.From = fromClause
 	}
 
-	// Parse JOINs
 	for p.curTokenIs(lexer.JOIN) || p.curTokenIs(lexer.INNER) || p.curTokenIs(lexer.LEFT) || p.curTokenIs(lexer.RIGHT) || p.curTokenIs(lexer.FULL) {
 		joinClause, err := p.parseJoinClause()
 		if err != nil {
@@ -210,7 +190,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.Joins = append(stmt.Joins, joinClause)
 	}
 
-	// Parse WHERE clause
 	if p.curTokenIs(lexer.WHERE) {
 		p.nextToken()
 		whereExpr, err := p.parseExpression()
@@ -220,7 +199,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.Where = whereExpr
 	}
 
-	// Parse GROUP BY
 	if p.curTokenIs(lexer.GROUP) {
 		groupBy, err := p.parseGroupByClause()
 		if err != nil {
@@ -229,7 +207,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.GroupBy = groupBy
 	}
 
-	// Parse HAVING
 	if p.curTokenIs(lexer.HAVING) {
 		p.nextToken()
 		havingExpr, err := p.parseExpression()
@@ -239,7 +216,6 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.Having = havingExpr
 	}
 
-	// Parse ORDER BY
 	if p.curTokenIs(lexer.ORDER) {
 		orderBy, err := p.parseOrderByClause()
 		if err != nil {
@@ -282,21 +258,18 @@ func (p *Parser) parseTopClause() (*TopClause, error) {
 func (p *Parser) parseSelectList() ([]Expression, error) {
 	var columns []Expression
 
-	// Handle SELECT *
 	if p.curTokenIs(lexer.ASTERISK) {
 		columns = append(columns, &StarExpression{})
 		p.nextToken()
 		return columns, nil
 	}
 
-	// Parse first column
 	expr, err := p.parseExpression()
 	if err != nil {
 		return nil, err
 	}
 	columns = append(columns, expr)
 
-	// Parse additional columns
 	for p.curTokenIs(lexer.COMMA) {
 		p.nextToken()
 
@@ -324,14 +297,12 @@ func (p *Parser) parseFromClause() (*FromClause, error) {
 
 	fromClause := &FromClause{}
 
-	// Parse first table
 	table, err := p.parseTableReference()
 	if err != nil {
 		return nil, err
 	}
 	fromClause.Tables = append(fromClause.Tables, *table)
 
-	// Parse additional tables (comma-separated)
 	for p.curTokenIs(lexer.COMMA) {
 		p.nextToken()
 		table, err := p.parseTableReference()
@@ -351,11 +322,9 @@ func (p *Parser) parseTableReference() (*TableReference, error) {
 
 	table := &TableReference{}
 
-	// First identifier could be schema or table name
 	firstIdent := p.curToken.Literal
 	p.nextToken()
 
-	// Check if there's a dot (schema.table)
 	if p.curTokenIs(lexer.DOT) {
 		p.nextToken()
 		if !p.curTokenIs(lexer.IDENT) {
@@ -368,7 +337,6 @@ func (p *Parser) parseTableReference() (*TableReference, error) {
 		table.Name = firstIdent
 	}
 
-	// Check for alias
 	if p.curTokenIs(lexer.AS) {
 		p.nextToken()
 		if !p.curTokenIs(lexer.IDENT) {
@@ -386,46 +354,44 @@ func (p *Parser) parseTableReference() (*TableReference, error) {
 }
 
 func (p *Parser) parseJoinClause() (*JoinClause, error) {
-	joinClause := GetJoinClause() // Use object pool
+	joinClause := GetJoinClause()
 
-	// Determine join type
 	if p.curTokenIs(lexer.INNER) {
 		joinClause.JoinType = "INNER"
 		p.nextToken()
 		if !p.expectPeek(lexer.JOIN) {
-			PutJoinClause(joinClause) // Return to pool on error
+			PutJoinClause(joinClause)
 			return nil, fmt.Errorf("expected JOIN after INNER")
 		}
 	} else if p.curTokenIs(lexer.LEFT) {
 		joinClause.JoinType = "LEFT"
 		p.nextToken()
 		if !p.expectPeek(lexer.JOIN) {
-			PutJoinClause(joinClause) // Return to pool on error
+			PutJoinClause(joinClause)
 			return nil, fmt.Errorf("expected JOIN after LEFT")
 		}
 	} else if p.curTokenIs(lexer.RIGHT) {
 		joinClause.JoinType = "RIGHT"
 		p.nextToken()
 		if !p.expectPeek(lexer.JOIN) {
-			PutJoinClause(joinClause) // Return to pool on error
+			PutJoinClause(joinClause)
 			return nil, fmt.Errorf("expected JOIN after RIGHT")
 		}
 	} else if p.curTokenIs(lexer.FULL) {
 		joinClause.JoinType = "FULL"
 		p.nextToken()
 		if !p.expectPeek(lexer.JOIN) {
-			PutJoinClause(joinClause) // Return to pool on error
+			PutJoinClause(joinClause)
 			return nil, fmt.Errorf("expected JOIN after FULL")
 		}
 	} else if p.curTokenIs(lexer.JOIN) {
-		joinClause.JoinType = "INNER" // Default to INNER JOIN
+		joinClause.JoinType = "INNER"
 		p.nextToken()
 	}
 
-	// Parse table reference
 	table, err := p.parseTableReference()
 	if err != nil {
-		PutJoinClause(joinClause) // Return to pool on error
+		PutJoinClause(joinClause)
 		return nil, err
 	}
 	joinClause.Table = *table

@@ -9,25 +9,23 @@ import (
 
 type Analyzer struct {
 	analysis QueryAnalysis
-	// Cache for repeated analyses
-	cache map[string]QueryAnalysis
-	mu    sync.RWMutex
+	cache    map[string]QueryAnalysis
+	mu       sync.RWMutex
 }
 
 func New() *Analyzer {
 	return &Analyzer{
 		analysis: QueryAnalysis{
-			Tables:     make([]TableInfo, 0, 8),     // Pre-allocate with reasonable capacity
-			Columns:    make([]ColumnInfo, 0, 16),   // Most queries have < 16 columns
-			Joins:      make([]JoinInfo, 0, 4),      // Most queries have < 4 joins
-			Conditions: make([]ConditionInfo, 0, 8), // Pre-allocate conditions
+			Tables:     make([]TableInfo, 0, 8),
+			Columns:    make([]ColumnInfo, 0, 16),
+			Joins:      make([]JoinInfo, 0, 4),
+			Conditions: make([]ConditionInfo, 0, 8),
 		},
-		cache: make(map[string]QueryAnalysis, 64), // Pre-allocate cache
+		cache: make(map[string]QueryAnalysis, 64),
 	}
 }
 
 func (a *Analyzer) Analyze(stmt parser.Statement) QueryAnalysis {
-	// Reset slices but keep capacity
 	a.analysis.Tables = a.analysis.Tables[:0]
 	a.analysis.Columns = a.analysis.Columns[:0]
 	a.analysis.Joins = a.analysis.Joins[:0]
@@ -53,7 +51,6 @@ func (a *Analyzer) Analyze(stmt parser.Statement) QueryAnalysis {
 }
 
 func (a *Analyzer) AnalyzeWithCache(stmt parser.Statement, cacheKey string) QueryAnalysis {
-	// Check cache first
 	if cacheKey != "" {
 		a.mu.RLock()
 		if cached, exists := a.cache[cacheKey]; exists {
@@ -63,10 +60,8 @@ func (a *Analyzer) AnalyzeWithCache(stmt parser.Statement, cacheKey string) Quer
 		a.mu.RUnlock()
 	}
 
-	// Perform analysis
 	analysis := a.Analyze(stmt)
 
-	// Cache result
 	if cacheKey != "" {
 		a.mu.Lock()
 		a.cache[cacheKey] = analysis
@@ -77,7 +72,6 @@ func (a *Analyzer) AnalyzeWithCache(stmt parser.Statement, cacheKey string) Quer
 }
 
 func (a *Analyzer) analyzeSelectStatement(stmt *parser.SelectStatement) {
-	// Analyze FROM clause
 	if stmt.From != nil {
 		for _, table := range stmt.From.Tables {
 			a.analysis.Tables = append(a.analysis.Tables, TableInfo{
@@ -89,7 +83,6 @@ func (a *Analyzer) analyzeSelectStatement(stmt *parser.SelectStatement) {
 		}
 	}
 
-	// Analyze JOINs
 	for _, join := range stmt.Joins {
 		a.analysis.Tables = append(a.analysis.Tables, TableInfo{
 			Schema: join.Table.Schema,
@@ -104,31 +97,25 @@ func (a *Analyzer) analyzeSelectStatement(stmt *parser.SelectStatement) {
 			Condition:  join.Condition.String(),
 		})
 
-		// Analyze join condition
 		a.analyzeExpression(join.Condition, "JOIN")
 	}
 
-	// Analyze SELECT columns
 	for _, col := range stmt.Columns {
 		a.analyzeExpression(col, "SELECT")
 	}
 
-	// Analyze WHERE clause
 	if stmt.Where != nil {
 		a.analyzeExpression(stmt.Where, "WHERE")
 	}
 
-	// Analyze GROUP BY
 	for _, expr := range stmt.GroupBy {
 		a.analyzeExpression(expr, "GROUP_BY")
 	}
 
-	// Analyze HAVING
 	if stmt.Having != nil {
 		a.analyzeExpression(stmt.Having, "HAVING")
 	}
 
-	// Analyze ORDER BY
 	for _, orderBy := range stmt.OrderBy {
 		a.analyzeExpression(orderBy.Expression, "ORDER_BY")
 	}

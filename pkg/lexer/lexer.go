@@ -1,23 +1,19 @@
 // Package lexer provides SQL tokenization functionality.
-// It converts SQL text into a stream of tokens for parsing, supporting
-// SQL Server syntax including keywords, operators, identifiers, and literals.
 package lexer
 
 import (
 	"strings"
 )
 
-// Optimized Lexer with reduced allocations
 type Lexer struct {
 	input        string
-	position     int  // current position in input (points to current char)
-	readPosition int  // current reading position in input (after current char)
-	ch           byte // current char under examination
-	line         int  // current line number
-	column       int  // current column number
+	position     int
+	readPosition int
+	ch           byte
+	line         int
+	column       int
 
-	// Performance optimizations
-	builder strings.Builder // Reusable string builder
+	builder strings.Builder
 }
 
 func New(input string) *Lexer {
@@ -62,7 +58,7 @@ func (l *Lexer) NextToken() Token {
 	// Handle line comments
 	if l.ch == '-' && l.peekChar() == '-' {
 		l.skipLineComment()
-		return l.NextToken() // Recursively get the next token after comment
+		return l.NextToken()
 	}
 
 	switch l.ch {
@@ -191,14 +187,14 @@ func (l *Lexer) readIdentifier() string {
 }
 
 func (l *Lexer) readBracketedIdentifier() string {
-	l.readChar() // skip the opening '['
+	l.readChar()
 	position := l.position
 	for l.ch != ']' && l.ch != 0 {
 		l.readChar()
 	}
 	result := l.input[position:l.position]
 	if l.ch == ']' {
-		l.readChar() // skip the closing ']'
+		l.readChar()
 	}
 	return result
 }
@@ -209,7 +205,6 @@ func (l *Lexer) readNumber() string {
 		l.readChar()
 	}
 
-	// Handle decimal numbers
 	if l.ch == '.' && isDigit(l.peekChar()) {
 		l.readChar()
 		for isDigit(l.ch) {
