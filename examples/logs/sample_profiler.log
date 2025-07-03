@@ -1,0 +1,5 @@
+2024-01-01 10:30:45.123 SQL:BatchCompleted SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id Duration: 150 ms CPU: 75 ms Reads: 1024 Writes: 0
+2024-01-01 10:31:12.456 SQL:BatchCompleted SELECT * FROM products WHERE category = 'electronics' Duration: 2500 ms CPU: 1200 ms Reads: 15360 Writes: 0
+2024-01-01 10:31:45.789 SQL:BatchCompleted INSERT INTO audit_log (user_id, action, timestamp) VALUES (123, 'login', '2024-01-01 10:31:45') Duration: 50 ms CPU: 25 ms Reads: 256 Writes: 1
+2024-01-01 10:32:01.234 SQL:BatchCompleted UPDATE users SET last_login = '2024-01-01 10:32:01' WHERE user_id = 123 Duration: 75 ms CPU: 35 ms Reads: 512 Writes: 1
+2024-01-01 10:32:30.567 SQL:BatchCompleted SELECT COUNT(*) FROM orders WHERE order_date >= '2024-01-01' Duration: 800 ms CPU: 400 ms Reads: 8192 Writes: 0

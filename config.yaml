@@ -1,0 +1,24 @@
+parser:
+  strict_mode: false
+  max_query_size: 1000000
+  dialect: "sqlserver"
+
+analyzer:
+  enable_optimizations: true
+  complexity_threshold: 10
+  detailed_analysis: true
+
+logger:
+  default_format: "profiler"
+  max_file_size_mb: 100
+  filters:
+    min_duration_ms: 0
+    max_duration_ms: 0
+    query_types: []
+    exclude_system: true
+
+output:
+  format: "json"
+  pretty_json: true
+  include_timestamps: true
+  output_file: ""
