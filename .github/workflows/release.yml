@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.24.3"
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Create dist directory
+        run: mkdir -p dist
+
+      - name: Build for multiple platforms
+        run: |
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o dist/sqlparser-linux-amd64 ./cmd/sqlparser
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o dist/sqlparser-darwin-amd64 ./cmd/sqlparser
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o dist/sqlparser-darwin-arm64 ./cmd/sqlparser
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/sqlparser-windows-amd64.exe ./cmd/sqlparser
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/sqlparser-linux-amd64
+            dist/sqlparser-darwin-amd64
+            dist/sqlparser-darwin-arm64
+            dist/sqlparser-windows-amd64.exe
+            dist/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
