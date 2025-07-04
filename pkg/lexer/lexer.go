@@ -12,8 +12,6 @@ type Lexer struct {
 	ch           byte
 	line         int
 	column       int
-
-	builder strings.Builder
 }
 
 func New(input string) *Lexer {

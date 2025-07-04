@@ -50,6 +50,7 @@ func (p *Parser) nextToken() {
 		p.errors = append(p.errors, "parsing cancelled due to timeout")
 		return
 	default:
+		// Continue with normal token processing
 	}
 
 	p.curToken = p.peekToken
@@ -69,37 +70,6 @@ func (p *Parser) peekError(t lexer.TokenType) {
 		p.peekToken.Column,
 	)
 	p.errors = append(p.errors, syntaxErr.Error())
-}
-
-func (p *Parser) noPrefixParseFnError(t lexer.TokenType) {
-	msg := fmt.Sprintf("no prefix parse function for %s found at line %d, column %d",
-		t.String(), p.curToken.Line, p.curToken.Column)
-	p.errors = append(p.errors, msg)
-}
-
-func (p *Parser) unexpectedTokenError(expected string) {
-	msg := fmt.Sprintf("unexpected token '%s' at line %d, column %d. Expected: %s",
-		p.curToken.Literal, p.curToken.Line, p.curToken.Column, expected)
-	p.errors = append(p.errors, msg)
-}
-
-func (p *Parser) synchronize() {
-	p.nextToken()
-
-	for !p.curTokenIs(lexer.EOF) {
-		if p.curTokenIs(lexer.SEMICOLON) {
-			p.nextToken()
-			return
-		}
-
-		switch p.curToken.Type {
-		case lexer.SELECT, lexer.INSERT, lexer.UPDATE, lexer.DELETE,
-			lexer.CREATE, lexer.DROP, lexer.ALTER:
-			return
-		}
-
-		p.nextToken()
-	}
 }
 
 func (p *Parser) curTokenIs(t lexer.TokenType) bool {
