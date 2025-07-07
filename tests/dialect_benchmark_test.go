@@ -92,7 +92,7 @@ func BenchmarkDialectLexing(b *testing.B) {
 		b.Run(dialectName, func(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				l := lexer.NewWithDialect(query, d)
 				tokenCount := 0
@@ -116,7 +116,7 @@ func BenchmarkDialectParsing(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			ctx := context.Background()
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				p := parser.NewWithDialect(ctx, query, d)
 				_, err := p.ParseStatement()
@@ -132,12 +132,12 @@ func BenchmarkDialectParsing(b *testing.B) {
 // BenchmarkDialectKeywordLookup benchmarks keyword lookup performance
 func BenchmarkDialectKeywordLookup(b *testing.B) {
 	keywords := []string{"SELECT", "FROM", "WHERE", "JOIN", "GROUP", "ORDER", "LIMIT", "SHOW", "DESCRIBE", "PRAGMA"}
-	
+
 	for dialectName := range dialectQueries {
 		b.Run(dialectName, func(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				for _, keyword := range keywords {
 					d.IsReservedWord(keyword)
@@ -150,12 +150,12 @@ func BenchmarkDialectKeywordLookup(b *testing.B) {
 // BenchmarkDialectQuoteIdentifier benchmarks identifier quoting performance
 func BenchmarkDialectQuoteIdentifier(b *testing.B) {
 	identifiers := []string{"table", "column", "user_id", "database", "schema", "long_table_name_with_underscores"}
-	
+
 	for dialectName := range dialectQueries {
 		b.Run(dialectName, func(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				for _, identifier := range identifiers {
 					d.QuoteIdentifier(identifier)
@@ -179,12 +179,12 @@ func BenchmarkDialectFeatureSupport(b *testing.B) {
 		dialect.FeatureUpsert,
 		dialect.FeatureReturningClause,
 	}
-	
+
 	for dialectName := range dialectQueries {
 		b.Run(dialectName, func(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				for _, feature := range features {
 					d.SupportsFeature(feature)
@@ -257,7 +257,7 @@ func BenchmarkComplexDialectQueries(b *testing.B) {
 			d := dialect.GetDialect(dialectName)
 			ctx := context.Background()
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				p := parser.NewWithDialect(ctx, query, d)
 				_, err := p.ParseStatement()
@@ -278,7 +278,7 @@ func BenchmarkDialectMemoryUsage(b *testing.B) {
 			ctx := context.Background()
 			b.ReportAllocs()
 			b.ResetTimer()
-			
+
 			for i := 0; i < b.N; i++ {
 				p := parser.NewWithDialect(ctx, query, d)
 				_, err := p.ParseStatement()
