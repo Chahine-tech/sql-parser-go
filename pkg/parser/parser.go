@@ -1,4 +1,4 @@
-// Package parser provides SQL parsing functionality for SQL Server queries.
+// Package parser provides SQL parsing functionality for SQL queries.
 package parser
 
 import (
@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Chahine-tech/sql-parser-go/pkg/dialect"
 	"github.com/Chahine-tech/sql-parser-go/pkg/lexer"
 )
 
@@ -22,7 +23,8 @@ type Parser struct {
 	parseStartTime time.Time
 	tokenCount     int
 
-	ctx context.Context
+	ctx     context.Context
+	dialect dialect.Dialect
 }
 
 func New(input string) *Parser {
@@ -30,12 +32,17 @@ func New(input string) *Parser {
 }
 
 func NewWithContext(ctx context.Context, input string) *Parser {
-	l := lexer.New(input)
+	return NewWithDialect(ctx, input, dialect.GetDialect("sqlserver"))
+}
+
+func NewWithDialect(ctx context.Context, input string, d dialect.Dialect) *Parser {
+	l := lexer.NewWithDialect(input, d)
 	p := &Parser{
 		l:              l,
 		errors:         make([]string, 0, 4),
 		parseStartTime: time.Now(),
 		ctx:            ctx,
+		dialect:        d,
 	}
 
 	p.nextToken()
@@ -50,12 +57,20 @@ func (p *Parser) nextToken() {
 		p.errors = append(p.errors, "parsing cancelled due to timeout")
 		return
 	default:
-		// Continue with normal token processing
+		p.curToken = p.peekToken
+		p.peekToken = p.l.NextToken()
+		p.tokenCount++
 	}
+}
 
-	p.curToken = p.peekToken
-	p.peekToken = p.l.NextToken()
-	p.tokenCount++
+// GetDialect returns the dialect used by this parser
+func (p *Parser) GetDialect() dialect.Dialect {
+	return p.dialect
+}
+
+// SetDialect sets the dialect for this parser
+func (p *Parser) SetDialect(d dialect.Dialect) {
+	p.dialect = d
 }
 
 func (p *Parser) Errors() []string {

@@ -12,6 +12,7 @@ import (
 	"github.com/Chahine-tech/sql-parser-go/internal/config"
 	"github.com/Chahine-tech/sql-parser-go/internal/performance"
 	"github.com/Chahine-tech/sql-parser-go/pkg/analyzer"
+	"github.com/Chahine-tech/sql-parser-go/pkg/dialect"
 	"github.com/Chahine-tech/sql-parser-go/pkg/logger"
 	"github.com/Chahine-tech/sql-parser-go/pkg/parser"
 )
@@ -24,6 +25,7 @@ func main() {
 		outputFormat = flag.String("output", "json", "Output format (json, table)")
 		verbose      = flag.Bool("verbose", false, "Verbose mode")
 		configFile   = flag.String("config", "", "Configuration file path")
+		dialectFlag  = flag.String("dialect", "", "SQL dialect (mysql, postgresql, sqlserver, sqlite, oracle)")
 		showHelp     = flag.Bool("help", false, "Show help")
 	)
 	flag.Parse()
@@ -41,6 +43,11 @@ func main() {
 
 	if *outputFormat != "json" {
 		cfg.Output.Format = *outputFormat
+	}
+
+	// Override dialect from command line if provided
+	if *dialectFlag != "" {
+		cfg.Parser.Dialect = *dialectFlag
 	}
 
 	if *queryFile != "" {
@@ -65,7 +72,7 @@ func main() {
 }
 
 func showUsage() {
-	fmt.Println("SQL Parser Go - SQL Server Query Analysis Tool")
+	fmt.Println("SQL Parser Go - Multi-Dialect SQL Query Analysis Tool")
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  sqlparser -query file.sql          Analyze SQL query from file")
@@ -74,13 +81,14 @@ func showUsage() {
 	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  -output FORMAT    Output format: json, table (default: json)")
+	fmt.Println("  -dialect DIALECT  SQL dialect: mysql, postgresql, sqlserver, sqlite, oracle (default: sqlserver)")
 	fmt.Println("  -verbose          Enable verbose output")
 	fmt.Println("  -config FILE      Configuration file path")
 	fmt.Println("  -help             Show this help")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  sqlparser -query complex_query.sql -output json")
-	fmt.Println("  sqlparser -sql \"SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id\"")
+	fmt.Println("  sqlparser -query complex_query.sql -output json -dialect mysql")
+	fmt.Println("  sqlparser -sql \"SELECT u.name, o.total FROM users u JOIN orders o ON u.id = o.user_id\" -dialect postgresql")
 	fmt.Println("  sqlparser -log sqlserver.log -output table -verbose")
 }
 
@@ -102,10 +110,15 @@ func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
 
 	if verbose {
 		fmt.Printf("Analyzing SQL query...\n")
-		fmt.Printf("Query: %s\n\n", sql)
+		fmt.Printf("Query: %s\n", sql)
+		fmt.Printf("Dialect: %s\n\n", cfg.Parser.Dialect)
 	}
 
-	p := parser.NewWithContext(ctx, sql)
+	// Get the dialect
+	d := dialect.GetDialect(cfg.Parser.Dialect)
+
+	// Create parser with dialect
+	p := parser.NewWithDialect(ctx, sql, d)
 	stmt, err := p.ParseStatement()
 	if err != nil {
 		return fmt.Errorf("failed to parse query: %w", err)

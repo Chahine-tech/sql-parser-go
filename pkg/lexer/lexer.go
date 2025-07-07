@@ -3,6 +3,8 @@ package lexer
 
 import (
 	"strings"
+
+	"github.com/Chahine-tech/sql-parser-go/pkg/dialect"
 )
 
 type Lexer struct {
@@ -12,13 +14,19 @@ type Lexer struct {
 	ch           byte
 	line         int
 	column       int
+	dialect      dialect.Dialect
 }
 
 func New(input string) *Lexer {
+	return NewWithDialect(input, dialect.GetDialect("sqlserver")) // Default to SQL Server
+}
+
+func NewWithDialect(input string, d dialect.Dialect) *Lexer {
 	l := &Lexer{
-		input:  input,
-		line:   1,
-		column: 0,
+		input:   input,
+		line:    1,
+		column:  0,
+		dialect: d,
 	}
 	l.readChar()
 	return l
@@ -39,6 +47,23 @@ func (l *Lexer) readChar() {
 	} else {
 		l.column++
 	}
+}
+
+// lookupIdent checks if an identifier is a keyword using the dialect
+func (l *Lexer) lookupIdent(ident string) TokenType {
+	// First check common SQL keywords
+	if tok, ok := keywords[ident]; ok {
+		return tok
+	}
+
+	// If not found in common keywords, check if it's a dialect-specific reserved word
+	if l.dialect.IsReservedWord(ident) {
+		// For dialect-specific keywords, we'll treat them as identifiers for now
+		// but could extend this to have dialect-specific token types
+		return IDENT
+	}
+
+	return IDENT
 }
 
 func (l *Lexer) peekChar() byte {
@@ -123,14 +148,36 @@ func (l *Lexer) NextToken() Token {
 		tok.Line = l.line
 		tok.Column = l.column
 	case '"':
-		tok.Type = STRING
-		tok.Literal = l.readDoubleQuotedString()
+		// Double quotes can be string literals or identifiers depending on dialect
+		if l.dialect.Name() == "PostgreSQL" || l.dialect.Name() == "SQLite" || l.dialect.Name() == "Oracle" {
+			tok.Type = IDENT
+			tok.Literal = l.readDoubleQuotedIdentifier()
+		} else {
+			tok.Type = STRING
+			tok.Literal = l.readDoubleQuotedString()
+		}
+		tok.Position = l.position
+		tok.Line = l.line
+		tok.Column = l.column
+	case '`':
+		// Backticks are MySQL-specific quoted identifiers
+		if l.dialect.Name() == "MySQL" {
+			tok.Type = IDENT
+			tok.Literal = l.readBacktickIdentifier()
+		} else {
+			tok = newToken(ILLEGAL, l.ch, l.position, l.line, l.column)
+		}
 		tok.Position = l.position
 		tok.Line = l.line
 		tok.Column = l.column
 	case '[':
-		tok.Type = IDENT
-		tok.Literal = l.readBracketedIdentifier()
+		// Brackets are SQL Server-specific quoted identifiers
+		if l.dialect.Name() == "SQL Server" {
+			tok.Type = IDENT
+			tok.Literal = l.readBracketedIdentifier()
+		} else {
+			tok = newToken(ILLEGAL, l.ch, l.position, l.line, l.column)
+		}
 		tok.Position = l.position
 		tok.Line = l.line
 		tok.Column = l.column
@@ -146,7 +193,7 @@ func (l *Lexer) NextToken() Token {
 			tok.Line = l.line
 			tok.Column = l.column
 			tok.Literal = l.readIdentifier()
-			tok.Type = LookupIdent(strings.ToUpper(tok.Literal))
+			tok.Type = l.lookupIdent(strings.ToUpper(tok.Literal))
 			return tok
 		} else if isDigit(l.ch) {
 			tok.Type = NUMBER
@@ -227,16 +274,36 @@ func (l *Lexer) readString() string {
 }
 
 func (l *Lexer) readDoubleQuotedString() string {
-	l.readChar() // skip the opening quote
-	position := l.position
-	for l.ch != '"' && l.ch != 0 {
-		if l.ch == '\\' {
-			l.readChar() // skip escape character
-		}
+	position := l.position + 1
+	for {
 		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
 	}
-	result := l.input[position:l.position]
-	return result
+	return l.input[position:l.position]
+}
+
+func (l *Lexer) readDoubleQuotedIdentifier() string {
+	position := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[position:l.position]
+}
+
+func (l *Lexer) readBacktickIdentifier() string {
+	position := l.position + 1
+	for {
+		l.readChar()
+		if l.ch == '`' || l.ch == 0 {
+			break
+		}
+	}
+	return l.input[position:l.position]
 }
 
 func isLetter(ch byte) bool {
