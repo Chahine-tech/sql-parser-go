@@ -274,3 +274,15 @@ func (ee *ExistsExpression) String() string {
 	}
 	return "EXISTS (...)"
 }
+
+// SubqueryExpression wraps a SelectStatement to make it usable as an Expression
+type SubqueryExpression struct {
+	BaseNode
+	Query *SelectStatement
+}
+
+func (se *SubqueryExpression) expressionNode() {}
+func (se *SubqueryExpression) Type() string    { return "SubqueryExpression" }
+func (se *SubqueryExpression) String() string {
+	return fmt.Sprintf("(%s)", se.Query.String())
+}

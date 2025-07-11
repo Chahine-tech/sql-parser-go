@@ -209,6 +209,15 @@ func (p *Parser) parseSelectStatement() (*SelectStatement, error) {
 		stmt.OrderBy = orderBy
 	}
 
+	// Parse LIMIT clause
+	if p.curTokenIs(lexer.LIMIT) {
+		limit, err := p.parseLimitClause()
+		if err != nil {
+			return nil, err
+		}
+		stmt.Limit = limit
+	}
+
 	return stmt, nil
 }
 
@@ -489,6 +498,49 @@ func (p *Parser) parseOrderByItem() (*OrderByClause, error) {
 	return clause, nil
 }
 
+func (p *Parser) parseLimitClause() (*LimitClause, error) {
+	if !p.curTokenIs(lexer.LIMIT) {
+		return nil, fmt.Errorf("expected LIMIT, got %s", p.curToken.Literal)
+	}
+
+	p.nextToken()
+
+	// Parse count
+	if !p.curTokenIs(lexer.NUMBER) {
+		return nil, fmt.Errorf("expected number after LIMIT, got %s", p.curToken.Literal)
+	}
+
+	count, err := strconv.Atoi(p.curToken.Literal)
+	if err != nil {
+		return nil, fmt.Errorf("invalid LIMIT count: %s", p.curToken.Literal)
+	}
+
+	clause := &LimitClause{
+		Count:  count,
+		Offset: 0, // Default
+	}
+
+	p.nextToken()
+
+	// Check for OFFSET (MySQL/PostgreSQL style: LIMIT count OFFSET offset)
+	if p.curTokenIs(lexer.OFFSET) {
+		p.nextToken()
+		if !p.curTokenIs(lexer.NUMBER) {
+			return nil, fmt.Errorf("expected number after OFFSET, got %s", p.curToken.Literal)
+		}
+
+		offset, err := strconv.Atoi(p.curToken.Literal)
+		if err != nil {
+			return nil, fmt.Errorf("invalid OFFSET value: %s", p.curToken.Literal)
+		}
+
+		clause.Offset = offset
+		p.nextToken()
+	}
+
+	return clause, nil
+}
+
 // Basic expression parsing (simplified for now)
 func (p *Parser) parseExpression() (Expression, error) {
 	return p.parseInfixExpression()
@@ -501,22 +553,96 @@ func (p *Parser) parseInfixExpression() (Expression, error) {
 	}
 
 	for p.isInfixOperator(p.curToken.Type) {
-		operator := p.curToken.Literal
-		p.nextToken()
+		if p.curToken.Type == lexer.IN {
+			// Special handling for IN expressions
+			inExpr, err := p.parseInExpression(left)
+			if err != nil {
+				return nil, err
+			}
+			left = inExpr
+		} else {
+			operator := p.curToken.Literal
+			p.nextToken()
 
-		right, err := p.parsePrimaryExpression()
-		if err != nil {
-			return nil, err
+			right, err := p.parsePrimaryExpression()
+			if err != nil {
+				return nil, err
+			}
+
+			expr := GetBinaryExpression() // Use object pool
+			expr.Left = left
+			expr.Operator = operator
+			expr.Right = right
+			left = expr
 		}
-
-		expr := GetBinaryExpression() // Use object pool
-		expr.Left = left
-		expr.Operator = operator
-		expr.Right = right
-		left = expr
 	}
 
 	return left, nil
+}
+
+func (p *Parser) parseInExpression(left Expression) (Expression, error) {
+	inExpr := &InExpression{
+		Expression: left,
+		Not:        false,
+	}
+
+	// Move past the IN token
+	p.nextToken()
+
+	// Expect opening parenthesis
+	if !p.curTokenIs(lexer.LPAREN) {
+		return nil, fmt.Errorf("expected '(' after IN, got %s", p.curToken.Literal)
+	}
+
+	p.nextToken()
+
+	// Check if this is a subquery (starts with SELECT)
+	if p.curTokenIs(lexer.SELECT) {
+		// Parse subquery
+		subquery, err := p.parseSelectStatement()
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse subquery in IN clause: %v", err)
+		}
+
+		// Wrap in SubqueryExpression
+		subqueryExpr := &SubqueryExpression{
+			Query: subquery,
+		}
+		inExpr.Values = []Expression{subqueryExpr}
+	} else {
+		// Parse list of values
+		values := make([]Expression, 0)
+
+		// Parse first value
+		if !p.curTokenIs(lexer.RPAREN) {
+			expr, err := p.parseExpression()
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, expr)
+
+			// Parse additional values
+			for p.curTokenIs(lexer.COMMA) {
+				p.nextToken()
+				expr, err := p.parseExpression()
+				if err != nil {
+					return nil, err
+				}
+				values = append(values, expr)
+			}
+		}
+
+		inExpr.Values = values
+	}
+
+	// Expect closing parenthesis
+	if !p.curTokenIs(lexer.RPAREN) {
+		return nil, fmt.Errorf("expected ')' after IN values, got %s", p.curToken.Literal)
+	}
+
+	p.nextToken()
+
+	return inExpr, nil
 }
 
 func (p *Parser) parsePrimaryExpression() (Expression, error) {

@@ -8,10 +8,11 @@ A powerful multi-dialect SQL query analysis tool written in Go that provides com
 - **SQL Query Parsing**: Parse and analyze complex SQL queries with dialect-specific syntax
 - **Abstract Syntax Tree (AST)**: Generate detailed AST representations
 - **Query Analysis**: Extract tables, columns, joins, and conditions
+- **Advanced Optimization Suggestions**: Get intelligent, dialect-specific recommendations for query improvements
+- **Subquery Support**: Parse and analyze complex subqueries in WHERE clauses
 - **Log Parsing**: Parse SQL Server log files (Profiler, Extended Events, Query Store)
-- **Optimization Suggestions**: Get recommendations for query improvements
 - **Multiple Output Formats**: JSON, table, and CSV output
-- **CLI Interface**: Easy-to-use command-line interface
+- **CLI Interface**: Easy-to-use command-line interface with enhanced optimization output
 - **Dialect-Specific Features**: Handle quoted identifiers, keywords, and features for each dialect
 
 ## Installation
@@ -69,6 +70,41 @@ make install
 ```
 
 See [DIALECT_SUPPORT.md](DIALECT_SUPPORT.md) for detailed information about dialect-specific features.
+
+### Get Optimization Suggestions
+
+#### Basic Optimization Analysis
+```bash
+./bin/sqlparser -sql "SELECT * FROM users WHERE UPPER(email) = 'TEST'" -dialect mysql -output table
+```
+
+#### Dialect-Specific Optimizations
+```bash
+# MySQL: LIMIT without ORDER BY warning
+./bin/sqlparser -sql "SELECT name FROM users LIMIT 10" -dialect mysql
+
+# SQL Server: Suggest TOP instead of LIMIT
+./bin/sqlparser -sql "SELECT name FROM users LIMIT 10" -dialect sqlserver
+
+# PostgreSQL: JSON vs JSONB suggestions
+./bin/sqlparser -sql "SELECT data FROM logs WHERE json_extract(data, '$.type') = 'error'" -dialect postgresql
+```
+
+#### Subquery Optimization Detection
+```bash
+./bin/sqlparser -sql "SELECT name FROM users WHERE id IN (SELECT user_id FROM orders)" -dialect postgresql
+```
+
+**Example Optimization Output:**
+```
+┌─────────────────────────────────────┬──────────┬────────────────────────────────┬─────────────────────────┐
+│ TYPE                                │ SEVERITY │ DESCRIPTION                    │ SUGGESTION              │
+├─────────────────────────────────────┼──────────┼────────────────────────────────┼─────────────────────────┤
+│ 🔍 SELECT_STAR                      │ WARNING  │ Avoid SELECT * for performance │ Specify explicit columns│
+│ ⚠️  INEFFICIENT_SUBQUERY            │ INFO     │ Subquery may be optimized      │ Consider JOIN instead   │
+│ 🚀 MYSQL_LIMIT_WITHOUT_ORDER        │ WARNING  │ LIMIT without ORDER BY         │ Add ORDER BY clause     │
+└─────────────────────────────────────┴──────────┴────────────────────────────────┴─────────────────────────┘
+```
 
 ### Parse SQL Server Logs
 
@@ -288,13 +324,14 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [x] Support for more SQL dialects (MySQL, PostgreSQL, SQLite, Oracle, SQL Server)
 - [x] Dialect-specific identifier quoting and keyword recognition
 - [x] Multi-dialect CLI interface with dialect selection
-- [ ] Advanced optimization suggestions
+- [x] **Advanced optimization suggestions** ✅ **COMPLETED!**
+- [x] **Dialect-specific optimization recommendations** ✅ **COMPLETED!**
+- [x] **Subquery parsing and optimization** ✅ **COMPLETED!**
 - [ ] Query execution plan analysis
 - [ ] Web interface
 - [x] Performance benchmarking
 - [ ] Real-time log monitoring
 - [ ] Integration with monitoring tools
-- [ ] Dialect-specific optimization recommendations
 - [ ] Extended dialect feature support (CTEs, window functions, etc.)
 - [ ] Schema-aware parsing and validation
 
@@ -322,20 +359,20 @@ This project has been heavily optimized for production use with Go's strengths i
 
 #### Lexing Performance (ns/op | MB/s)
 ```
-SQL Server:   2,453 ns/op  | 203.45 MB/s   (bracket parsing - fastest!)
-SQLite:       2,749 ns/op  | 172.42 MB/s   (lightweight parsing)
-Oracle:       3,538 ns/op  | 141.04 MB/s   (enterprise parsing)
-PostgreSQL:   8,657 ns/op  |  56.84 MB/s   (double quote parsing)
-MySQL:       17,239 ns/op  |  27.67 MB/s   (complex backtick parsing)
+SQL Server:   2,492 ns/op  | 200.24 MB/s   (bracket parsing - fastest!)
+SQLite:       2,900 ns/op  | 163.44 MB/s   (lightweight parsing)
+Oracle:       3,620 ns/op  | 137.85 MB/s   (enterprise parsing)
+PostgreSQL:   8,736 ns/op  |  56.32 MB/s   (double quote parsing)
+MySQL:       16,708 ns/op  |  28.55 MB/s   (complex backtick parsing)
 ```
 
 #### Parsing Performance (ns/op | MB/s)
 ```
-SQL Server:    400 ns/op  |1246.17 MB/s   (🚀 ultra-fast!)
-Oracle:      1,408 ns/op  | 354.47 MB/s   
-SQLite:      1,442 ns/op  | 328.75 MB/s   
-PostgreSQL:  2,605 ns/op  | 188.88 MB/s   
-MySQL:       4,774 ns/op  |  99.91 MB/s   
+SQL Server:    375.9 ns/op |1327.54 MB/s   (🚀 ultra-fast!)
+Oracle:      1,315 ns/op   | 379.61 MB/s   
+SQLite:      1,248 ns/op   | 379.77 MB/s   
+PostgreSQL:  2,753 ns/op   | 178.71 MB/s   
+MySQL:       4,887 ns/op   |  97.60 MB/s   
 ```
 
 #### Memory Usage (per operation)
@@ -356,8 +393,8 @@ Keyword Lookup:   2,877-43,984 ns/op (varies by dialect complexity)
 
 ### Real-world Performance
 
-- **🏆 Best overall**: SQL Server (400ns parsing, 1.2GB/s throughput)
-- **🥇 Best lexing**: SQL Server bracket parsing at 203MB/s
+- **🏆 Best overall**: SQL Server (375ns parsing, 1.3GB/s throughput)
+- **🥇 Best lexing**: SQL Server bracket parsing at 200MB/s
 - **🥈 Most balanced**: PostgreSQL (fast + memory efficient)
 - **🥉 Most features**: MySQL (comprehensive but slower due to complexity)
 

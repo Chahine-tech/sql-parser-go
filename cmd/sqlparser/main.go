@@ -132,19 +132,37 @@ func analyzeQueryString(sql string, cfg *config.Config, verbose bool) error {
 		}
 	}
 
-	a := analyzer.New()
+	// Create analyzer with dialect for enhanced optimization suggestions
+	a := analyzer.NewWithDialect(d)
 	analysis := a.Analyze(stmt)
 
 	var suggestions []analyzer.OptimizationSuggestion
+	var enhancedSuggestions []analyzer.EnhancedOptimizationSuggestion
+
 	if cfg.Analyzer.EnableOptimizations {
+		// Get enhanced optimization suggestions
+		enhancedSuggestions = a.GetEnhancedOptimizations(stmt)
+
+		// For backward compatibility, also get legacy suggestions
 		if selectStmt, ok := stmt.(*parser.SelectStatement); ok {
 			suggestions = a.SuggestOptimizations(selectStmt)
 		}
+
+		// Add enhanced suggestions to analysis for output
+		analysis.EnhancedSuggestions = enhancedSuggestions
+		analysis.Suggestions = suggestions
 	}
 
 	if verbose {
 		metrics := monitor.GetMetrics()
 		fmt.Printf("Performance metrics: %v\n", metrics)
+
+		if len(enhancedSuggestions) > 0 {
+			fmt.Printf("\nOptimization suggestions found: %d\n", len(enhancedSuggestions))
+			for _, suggestion := range enhancedSuggestions {
+				fmt.Printf("- [%s] %s: %s\n", suggestion.Severity, suggestion.Type, suggestion.Description)
+			}
+		}
 	}
 
 	return outputAnalysis(analysis, suggestions, cfg)
@@ -276,8 +294,36 @@ func outputTable(analysis analyzer.QueryAnalysis, suggestions []analyzer.Optimiz
 		fmt.Println()
 	}
 
-	// Optimization Suggestions
-	if len(suggestions) > 0 {
+	// Enhanced Optimization Suggestions (new)
+	if len(analysis.EnhancedSuggestions) > 0 {
+		fmt.Println("🚀 Advanced Optimization Suggestions:")
+		fmt.Printf("%-5s %-12s %-8s %-25s %-8s %s\n", "#", "Category", "Impact", "Type", "Severity", "Description")
+		fmt.Println(strings.Repeat("-", 100))
+
+		for i, suggestion := range analysis.EnhancedSuggestions {
+			icon := getSeverityIcon(suggestion.Severity)
+			fmt.Printf("%-5d %-12s %-8s %-25s %s%-8s %s\n",
+				i+1,
+				suggestion.Category,
+				suggestion.Impact,
+				suggestion.Type,
+				icon,
+				suggestion.Severity,
+				suggestion.Description)
+
+			if suggestion.FixSuggestion != "" {
+				fmt.Printf("      💡 Fix: %s\n", suggestion.FixSuggestion)
+			}
+
+			if suggestion.Dialect != "" {
+				fmt.Printf("      🔧 Dialect: %s\n", suggestion.Dialect)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Legacy Optimization Suggestions (for backward compatibility)
+	if len(suggestions) > 0 && len(analysis.EnhancedSuggestions) == 0 {
 		fmt.Println("Optimization Suggestions:")
 		for i, suggestion := range suggestions {
 			fmt.Printf("%d. [%s] %s\n", i+1, suggestion.Severity, suggestion.Description)
@@ -286,6 +332,22 @@ func outputTable(analysis analyzer.QueryAnalysis, suggestions []analyzer.Optimiz
 	}
 
 	return nil
+}
+
+// getSeverityIcon returns an appropriate icon for the severity level
+func getSeverityIcon(severity string) string {
+	switch severity {
+	case "CRITICAL":
+		return "🔥"
+	case "ERROR":
+		return "❌"
+	case "WARNING":
+		return "⚠️ "
+	case "INFO":
+		return "ℹ️ "
+	default:
+		return "   "
+	}
 }
 
 func outputLogTable(entries []logger.LogEntry, metrics logger.LogMetrics) error {

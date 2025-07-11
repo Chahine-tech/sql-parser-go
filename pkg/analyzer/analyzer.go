@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Chahine-tech/sql-parser-go/pkg/dialect"
 	"github.com/Chahine-tech/sql-parser-go/pkg/parser"
 )
 
 type Analyzer struct {
-	analysis QueryAnalysis
-	cache    map[string]QueryAnalysis
-	mu       sync.RWMutex
+	analysis           QueryAnalysis
+	cache              map[string]QueryAnalysis
+	mu                 sync.RWMutex
+	optimizationEngine *OptimizationEngine
 }
 
 func New() *Analyzer {
@@ -22,6 +24,19 @@ func New() *Analyzer {
 			Conditions: make([]ConditionInfo, 0, 8),
 		},
 		cache: make(map[string]QueryAnalysis, 64),
+	}
+}
+
+func NewWithDialect(d dialect.Dialect) *Analyzer {
+	return &Analyzer{
+		analysis: QueryAnalysis{
+			Tables:     make([]TableInfo, 0, 8),
+			Columns:    make([]ColumnInfo, 0, 16),
+			Joins:      make([]JoinInfo, 0, 4),
+			Conditions: make([]ConditionInfo, 0, 8),
+		},
+		cache:              make(map[string]QueryAnalysis, 64),
+		optimizationEngine: NewOptimizationEngine(d),
 	}
 }
 
@@ -275,6 +290,38 @@ func (a *Analyzer) SuggestOptimizations(stmt *parser.SelectStatement) []Optimiza
 	}
 
 	return suggestions
+}
+
+// GetEnhancedOptimizations returns comprehensive optimization suggestions using the new engine
+func (a *Analyzer) GetEnhancedOptimizations(stmt parser.Statement) []EnhancedOptimizationSuggestion {
+	if a.optimizationEngine == nil {
+		// Fallback to basic suggestions if no optimization engine is available
+		basicSuggestions := a.SuggestOptimizations(stmt.(*parser.SelectStatement))
+		enhanced := make([]EnhancedOptimizationSuggestion, len(basicSuggestions))
+		for i, basic := range basicSuggestions {
+			enhanced[i] = EnhancedOptimizationSuggestion{
+				Type:        basic.Type,
+				Description: basic.Description,
+				Severity:    basic.Severity,
+				Category:    "GENERAL",
+				Rule:        basic.Type,
+				Line:        basic.Line,
+				Suggestion:  "Review query for optimization opportunities",
+				Impact:      "MEDIUM",
+				AutoFixable: false,
+			}
+		}
+		return enhanced
+	}
+
+	return a.optimizationEngine.AnalyzeOptimizations(stmt)
+}
+
+// SetOptimizationEngine allows setting a custom optimization engine
+func (a *Analyzer) SetOptimizationEngine(engine *OptimizationEngine) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.optimizationEngine = engine
 }
 
 func (a *Analyzer) hasSelectAll(stmt *parser.SelectStatement) bool {

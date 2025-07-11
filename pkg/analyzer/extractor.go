@@ -9,6 +9,10 @@ type QueryAnalysis struct {
 	Complexity int             `json:"complexity"`
 	// Performance metrics
 	Performance *PerformanceMetrics `json:"performance,omitempty"`
+	// Enhanced optimization suggestions
+	EnhancedSuggestions []EnhancedOptimizationSuggestion `json:"enhanced_suggestions,omitempty"`
+	// Legacy suggestions for backward compatibility
+	Suggestions []OptimizationSuggestion `json:"suggestions,omitempty"`
 }
 
 type TableInfo struct {
